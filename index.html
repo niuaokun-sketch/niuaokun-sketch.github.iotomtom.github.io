@@ -2,58 +2,147 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>naco的 WebGL 世界</title>
+    <title>我的数字森林 - WebGL</title>
     <style>
-        body { margin: 0; overflow: hidden; } /* 去掉滚动条 */
-        canvas { display: block; }
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #000; /* 纯黑背景 */
+            font-family: monospace;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ffcc;
+            pointer-events: none;
+            z-index: 100;
+        }
+        h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            text-shadow: 0 0 10px #00ffcc;
+        }
+        p { margin-top: 5px; opacity: 0.8; }
     </style>
 </head>
 <body>
-    <!-- 引入 Three.js 引擎 (这就是魔法的来源) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <div id="info">
+        <h1>PROJECT: FOREST</h1>
+        <p>鼠标拖动旋转 | 滚轮缩放 | 模拟 Bear 71 视觉风格</p>
+    </div>
 
-    <script>
-        // 1. 创建场景 (相当于宇宙)
+    <!-- 使用 ES Module 方式引入 Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 1. 场景初始化 ---
         const scene = new THREE.Scene();
-        // 给宇宙加个雾气效果，像 Bear 71 那样
-        scene.fog = new THREE.FogExp2(0x000000, 0.02);
+        scene.background = new THREE.Color(0x050505); // 极深的灰色背景
+        // 添加雾气效果，让远处的物体渐渐隐入黑暗，增加深邃感
+        scene.fog = new THREE.FogExp2(0x050505, 0.02);
 
-        // 2. 创建摄像机 (相当于你的眼睛)
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 5; // 把摄像机往后拉一点
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 20); // 初始摄像机位置
 
-        // 3. 创建渲染器 (相当于放映机)
-        const renderer = new THREE.WebGLRenderer();
+        const renderer = new THREE.WebGLRenderer({ antialias: true }); // 开启抗锯齿
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        // 4. 创建一个物体 (一个绿色的立方体)
-        // 骨架
-        const geometry = new THREE.BoxGeometry();
-        // 皮肤 (网格状，看起来更有科技感)
-        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true });
-        const cube = new THREE.Mesh(geometry, material);
-        scene.add(cube);
+        // --- 2. 控制器 (允许鼠标交互) ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // 开启阻尼滑动效果，更有质感
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.1; // 限制不能钻到地底下
 
-        // 5. 动画循环 (让它动起来)
+        // --- 3. 创建地面 (网格风格) ---
+        // 一个巨大的地面网格，模拟数字化地形
+        const gridHelper = new THREE.GridHelper(200, 100, 0x004444, 0x002222);
+        scene.add(gridHelper);
+
+        // --- 4. 生成线框森林 (程序化生成) ---
+        // 我们不加载模型，而是用代码“种”树
+        const treeCount = 150;
+        const geometry = new THREE.ConeGeometry(0.5, 4, 4, 1); // 圆锥体作为树
+        // 树的材质：线框模式，青色
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x00ffcc, 
+            wireframe: true,
+            transparent: true,
+            opacity: 0.5
+        });
+
+        for ( let i = 0; i < treeCount; i ++ ) {
+            const tree = new THREE.Mesh( geometry, material );
+            
+            // 随机位置 (X 和 Z 轴)
+            tree.position.x = ( Math.random() - 0.5 ) * 100;
+            tree.position.z = ( Math.random() - 0.5 ) * 100;
+            tree.position.y = 2; // 树的高度修正
+
+            // 随机大小
+            const scale = Math.random() * 1.5 + 0.5;
+            tree.scale.set(scale, scale * 1.5, scale);
+
+            // 稍微随机一点旋转
+            tree.rotation.y = Math.random() * Math.PI;
+
+            scene.add( tree );
+        }
+
+        // --- 5. 添加漂浮的数据粒子 ---
+        const particlesGeometry = new THREE.BufferGeometry();
+        const particleCount = 2000;
+        const posArray = new Float32Array(particleCount * 3);
+
+        for(let i = 0; i < particleCount * 3; i++) {
+            // 粒子散布在更广的空间
+            posArray[i] = (Math.random() - 0.5) * 150; 
+        }
+
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particlesMaterial = new THREE.PointsMaterial({
+            size: 0.1,
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.8
+        });
+        const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+        scene.add(particlesMesh);
+
+        // --- 6. 动画循环 ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // 让立方体旋转
-            cube.rotation.x += 0.01;
-            cube.rotation.y += 0.01;
+            controls.update(); // 更新控制器状态
 
+            // 让粒子缓慢旋转，增加动态感
+            particlesMesh.rotation.y += 0.0005;
+
+            // 渲染
             renderer.render(scene, camera);
         }
 
         animate();
 
-        // 监听窗口大小变化，保持全屏
-        window.addEventListener('resize', () => {
+        // --- 7. 窗口自适应 ---
+        window.addEventListener('resize', onWindowResize);
+        function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        }
     </script>
 </body>
 </html>
