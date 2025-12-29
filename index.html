@@ -1,17 +1,40 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的 3D 实验站</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #000; color: white; font-family: sans-serif;}
-        #canvas-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center;}
-    </style>
+    <title>我的个人主页</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body> 
-    <div id="canvas-container">
-        <h1>我的第一个网站：准备接入 WebGL</h1>
-    </div>
+<body>
+    <header>
+        <div class="logo">我的世界</div>
+        <nav>
+            <ul>
+                <li><a href="#">首页</a></li>
+                <li><a href="#">关于</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <h1>欢迎来到我的网站</h1>
+        <p>这是我在 GitHub 上的第一个主页！</p>
+        <button onclick="alert('你好！网站搭建成功！')">点击我</button>
+    </section>
+
+    <section class="container">
+        <h2>我的文章</h2>
+        <div class="article-grid">
+            <article class="card">
+                <h3>第一篇博客</h3>
+                <p>终于把网站搭建好了，感觉GitHub Pages真神奇。</p>
+            </article>
+            <article class="card">
+                <h3>下一步计划</h3>
+                <p>我要开始学习怎么修改样式，让网站更好看。</p>
+            </article>
+        </div>
+    </section>
 </body>
 </html>
