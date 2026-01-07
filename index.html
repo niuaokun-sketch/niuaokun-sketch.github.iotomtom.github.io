@@ -2,21 +2,107 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>我的变异生物馆</title>
+    <title>变异生物监测网 | Mutant Watch</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
-        #loading {
-            position: absolute; top: 50%; left: 50%; 
-            transform: translate(-50%, -50%);
-            color: #00ffcc; font-family: monospace; font-size: 20px;
-            pointer-events: none;
+        /* --- 1. 基础样式 --- */
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; }
+        
+        /* --- 2. 左上角标题 --- */
+        #header {
+            position: absolute; top: 20px; left: 20px; color: #00ffcc; z-index: 10;
+            pointer-events: none; /* 让鼠标穿透文字，不影响拖拽3D */
+        }
+        h1 { margin: 0; font-size: 24px; text-transform: uppercase; letter-spacing: 2px; }
+        p { margin: 5px 0 0 0; font-size: 12px; opacity: 0.7; }
+
+        /* --- 3. 右下角：交互式地图 (核心功能) --- */
+        #map-container {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 200px; height: 150px;
+            background: rgba(0, 20, 0, 0.8); /* 深绿背景模拟雷达 */
+            border: 2px solid #00ffcc;
+            border-radius: 10px;
+            z-index: 20;
+            /* 这里可以换成你的地图背景图 url('map.png') */
+            background-image: linear-gradient(0deg, transparent 24%, rgba(0, 255, 204, .3) 25%, rgba(0, 255, 204, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 204, .3) 75%, rgba(0, 255, 204, .3) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(0, 255, 204, .3) 25%, rgba(0, 255, 204, .3) 26%, transparent 27%, transparent 74%, rgba(0, 255, 204, .3) 75%, rgba(0, 255, 204, .3) 76%, transparent 77%, transparent);
+            background-size: 30px 30px;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.3);
+        }
+        
+        #map-title {
+            position: absolute; top: -25px; left: 0; color: #00ffcc; font-size: 12px; font-weight: bold;
+        }
+
+        /* 地图上的闪烁点 */
+        .map-point {
+            position: absolute;
+            width: 12px; height: 12px;
+            background-color: #ff3333;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid white;
+            transition: transform 0.2s;
+            animation: pulse 1.5s infinite;
+        }
+        .map-point:hover { transform: scale(1.5); background-color: #fff; }
+        
+        /* 定义两个点的位置 (你可以自己加更多) */
+        #point-turtle { top: 40%; left: 30%; } /* 海龟位置 */
+        #point-crab { top: 70%; left: 80%; }   /* 螃蟹位置 */
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 51, 51, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0); }
+        }
+
+        /* --- 4. 左下角：生物信息卡片 --- */
+        #info-panel {
+            position: absolute; bottom: 20px; left: 20px;
+            width: 300px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            border-left: 4px solid #00ffcc;
+            padding: 15px;
+            display: none; /* 默认隐藏，加载成功后显示 */
+            z-index: 10;
+        }
+        #anim-name { font-size: 20px; font-weight: bold; color: #00ffcc; margin-bottom: 5px; }
+        #anim-desc { font-size: 14px; line-height: 1.4; color: #ddd; }
+
+        /* 加载提示 */
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #00ffcc; font-size: 20px; pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div id="loading">正在加载生物样本...</div>
 
-    <!-- 引入 Three.js 和 GLTFLoader -->
+    <!-- 页面 UI 元素 -->
+    <div id="header">
+        <h1>Mutant Ecology Map</h1>
+        <p>重新思考人与海洋的关系 | 9种未来变异生物</p>
+    </div>
+
+    <div id="loader">系统初始化中...</div>
+
+    <!-- 信息面板 -->
+    <div id="info-panel">
+        <div id="anim-name">生物名称</div>
+        <div id="anim-desc">生物描述...</div>
+    </div>
+
+    <!-- 地图区域 -->
+    <div id="map-container">
+        <div id="map-title">SECTOR 7: COASTAL ZONE</div>
+        <!-- 按钮 1：海龟 -->
+        <div class="map-point" id="point-turtle" onclick="switchAnimal('turtle')" title="聚合物镶嵌海龟"></div>
+        <!-- 按钮 2：螃蟹 -->
+        <div class="map-point" id="point-crab" onclick="switchAnimal('crab')" title="瓶盖寄居蟹"></div>
+    </div>
+
+    <!-- 3D 引擎部分 -->
     <script type="importmap">
         {
             "imports": {
@@ -29,81 +115,147 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'; // 引入模型加载器
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-        // 1. 场景
+        // --- 数据配置中心 (你可以在这里添加更多动物) ---
+        const animals = {
+            'turtle': {
+                name: "NO.1 聚合物镶嵌海龟",
+                file: "./wugui.glb", // 你的海龟文件名
+                desc: "为了抵御塑料碎片，海龟的背甲融合了回收塑料。背部呈现马赛克般的彩色纹理。它们以此适应充满垃圾的海洋。",
+                scale: 1.5, // 如果模型太小，改大这个数字
+                yOffset: 0  // 上下位置微调
+            },
+            'crab': {
+                name: "NO.2 瓶盖寄居蟹",
+                file: "./pangxie.glb",   // 你的螃蟹文件名
+                desc: "由于天然贝壳酸化溶解，寄居蟹开始寄宿在废弃的工业瓶盖中。这是物种对消费主义垃圾的无奈妥协。",
+                scale: 1.0,
+                yOffset: -1
+            }
+        };
+
+        // --- 1. 场景初始化 ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111); // 深灰背景
-        scene.fog = new THREE.FogExp2(0x111111, 0.05); // 雾气
+        scene.background = new THREE.Color(0x050505);
+        scene.fog = new THREE.FogExp2(0x050505, 0.03); // 黑色雾气
 
-        // 2. 相机
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 5); // 调整相机位置，确保能看到模型
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 2, 6);
 
-        // 3. 渲染器
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // 4. 灯光 (没有灯光模型就是黑的！)
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1); // 环境光
+        // --- 2. 灯光 ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         scene.add(ambientLight);
-        
-        const dirLight = new THREE.DirectionalLight(0xffffff, 2); // 直射光
-        dirLight.position.set(5, 10, 7);
+        const dirLight = new THREE.DirectionalLight(0x00ffcc, 2); // 青色光，科幻感
+        dirLight.position.set(5, 5, 5);
         scene.add(dirLight);
 
-        // 5. 地面网格
-        const gridHelper = new THREE.GridHelper(50, 50, 0x00ffcc, 0x222222);
+        // --- 3. 辅助网格 (地面) ---
+        const gridHelper = new THREE.GridHelper(50, 50, 0x004444, 0x001111);
         scene.add(gridHelper);
 
-        // 6. 加载模型 (关键步骤！！！)
+        // --- 4. 粒子系统 (模拟水下浮尘) ---
+        const particlesGeo = new THREE.BufferGeometry();
+        const particlesCount = 1000;
+        const posArray = new Float32Array(particlesCount * 3);
+        for(let i = 0; i < particlesCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 40;
+        }
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particlesMat = new THREE.PointsMaterial({ size: 0.05, color: 0x00ffcc, transparent: true, opacity: 0.5 });
+        const particles = new THREE.Points(particlesGeo, particlesMat);
+        scene.add(particles);
+
+        // --- 5. 模型加载逻辑 ---
+        let currentModel = null;
         const loader = new GLTFLoader();
-        
-        // ⚠️⚠️⚠️ 请确保这里的名字和你上传的文件名一模一样 ⚠️⚠️⚠️
-        loader.load( './wugui.glb', function ( gltf ) {
+        const clock = new THREE.Clock();
 
-            const model = gltf.scene;
-            
-            // 调整模型大小 (AI生成的模型有时候巨大，有时候巨小)
-            model.scale.set(1, 1, 1); 
-            // 调整位置
-            model.position.set(0, 0, 0);
+        // 切换动物的核心函数（全局可用）
+        window.switchAnimal = function(id) {
+            const data = animals[id];
+            if (!data) return;
 
-            // 【可选】强制变成线框风格 (符合 Bear 71 风格)
-            // 如果你想要保留原本的颜色，把下面这几行注释掉或删掉
-            model.traverse((child) => {
-                if (child.isMesh) {
-                    child.material = new THREE.MeshBasicMaterial({
-                        color: 0x00ffcc, // 青色线框
-                        wireframe: true  // 开启线框模式
-                    });
-                }
+            // 1. 更新 UI
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('loader').innerText = "正在定位样本: " + data.name;
+            document.getElementById('info-panel').style.display = 'none';
+
+            // 2. 移除旧模型
+            if (currentModel) {
+                scene.remove(currentModel);
+                currentModel = null;
+            }
+
+            // 3. 加载新模型
+            loader.load(data.file, (gltf) => {
+                const model = gltf.scene;
+                currentModel = model;
+
+                // 设置大小和位置
+                model.scale.set(data.scale, data.scale, data.scale);
+                model.position.y = data.yOffset;
+
+                // 线框化处理 (赛博风格)
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.material = new THREE.MeshBasicMaterial({
+                            color: 0x00ffcc,
+                            wireframe: true,
+                            transparent: true,
+                            opacity: 0.8
+                        });
+                    }
+                });
+
+                scene.add(model);
+
+                // 加载完成，显示信息
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('info-panel').style.display = 'block';
+                document.getElementById('anim-name').innerText = data.name;
+                document.getElementById('anim-desc').innerText = data.desc;
+
+            }, undefined, (err) => {
+                console.error(err);
+                document.getElementById('loader').innerText = "错误：找不到模型文件 " + data.file;
             });
+        };
 
-            scene.add(model);
-            
-            // 加载完成后隐藏文字
-            document.getElementById('loading').style.display = 'none';
+        // --- 6. 默认加载第一只 ---
+        switchAnimal('turtle');
 
-        }, undefined, function ( error ) {
-            console.error( error );
-            document.getElementById('loading').innerText = '加载失败，请检查文件名！';
-        } );
-
-        // 7. 控制器
+        // --- 7. 动画循环 ---
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
 
-        // 8. 动画
         function animate() {
             requestAnimationFrame(animate);
+            
+            const time = clock.getElapsedTime();
+
+            // 如果有模型，让它动起来 (模拟游泳算法)
+            if (currentModel) {
+                // 上下浮动 (sin函数)
+                currentModel.position.y += Math.sin(time) * 0.002;
+                // 缓慢自转
+                currentModel.rotation.y += 0.005;
+                // 微微摆动 (模拟游动姿态)
+                currentModel.rotation.z = Math.sin(time * 2) * 0.05;
+            }
+
+            // 让粒子旋转
+            particles.rotation.y = time * 0.05;
+
             controls.update();
             renderer.render(scene, camera);
         }
         animate();
 
-        // 窗口适配
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
