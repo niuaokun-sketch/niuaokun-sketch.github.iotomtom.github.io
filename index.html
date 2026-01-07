@@ -2,37 +2,21 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>我的数字森林 - WebGL</title>
+    <title>我的变异生物馆</title>
     <style>
-        body { 
-            margin: 0; 
-            overflow: hidden; 
-            background-color: #000; /* 纯黑背景 */
-            font-family: monospace;
-        }
-        #info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #00ffcc;
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        #loading {
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%);
+            color: #00ffcc; font-family: monospace; font-size: 20px;
             pointer-events: none;
-            z-index: 100;
         }
-        h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            text-shadow: 0 0 10px #00ffcc;
-        }
-        p { margin-top: 5px; opacity: 0.8; }
     </style>
 </head>
 <body>
-    <div id="info">
-        <h1>PROJECT: FOREST</h1>
-        <p>鼠标拖动旋转 | 滚轮缩放 | 模拟 Bear 71 视觉风格</p>
-    </div>
+    <div id="loading">正在加载生物样本...</div>
 
-    <!-- 使用 ES Module 方式引入 Three.js -->
+    <!-- 引入 Three.js 和 GLTFLoader -->
     <script type="importmap">
         {
             "imports": {
@@ -45,104 +29,86 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'; // 引入模型加载器
 
-        // --- 1. 场景初始化 ---
+        // 1. 场景
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050505); // 极深的灰色背景
-        // 添加雾气效果，让远处的物体渐渐隐入黑暗，增加深邃感
-        scene.fog = new THREE.FogExp2(0x050505, 0.02);
+        scene.background = new THREE.Color(0x111111); // 深灰背景
+        scene.fog = new THREE.FogExp2(0x111111, 0.05); // 雾气
 
+        // 2. 相机
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 20); // 初始摄像机位置
+        camera.position.set(0, 2, 5); // 调整相机位置，确保能看到模型
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true }); // 开启抗锯齿
+        // 3. 渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. 控制器 (允许鼠标交互) ---
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // 开启阻尼滑动效果，更有质感
-        controls.dampingFactor = 0.05;
-        controls.maxPolarAngle = Math.PI / 2 - 0.1; // 限制不能钻到地底下
+        // 4. 灯光 (没有灯光模型就是黑的！)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1); // 环境光
+        scene.add(ambientLight);
+        
+        const dirLight = new THREE.DirectionalLight(0xffffff, 2); // 直射光
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
 
-        // --- 3. 创建地面 (网格风格) ---
-        // 一个巨大的地面网格，模拟数字化地形
-        const gridHelper = new THREE.GridHelper(200, 100, 0x004444, 0x002222);
+        // 5. 地面网格
+        const gridHelper = new THREE.GridHelper(50, 50, 0x00ffcc, 0x222222);
         scene.add(gridHelper);
 
-        // --- 4. 生成线框森林 (程序化生成) ---
-        // 我们不加载模型，而是用代码“种”树
-        const treeCount = 150;
-        const geometry = new THREE.ConeGeometry(0.5, 4, 4, 1); // 圆锥体作为树
-        // 树的材质：线框模式，青色
-        const material = new THREE.MeshBasicMaterial({ 
-            color: 0x00ffcc, 
-            wireframe: true,
-            transparent: true,
-            opacity: 0.5
-        });
+        // 6. 加载模型 (关键步骤！！！)
+        const loader = new GLTFLoader();
+        
+        // ⚠️⚠️⚠️ 请确保这里的名字和你上传的文件名一模一样 ⚠️⚠️⚠️
+        loader.load( './wugui.glb', function ( gltf ) {
 
-        for ( let i = 0; i < treeCount; i ++ ) {
-            const tree = new THREE.Mesh( geometry, material );
+            const model = gltf.scene;
             
-            // 随机位置 (X 和 Z 轴)
-            tree.position.x = ( Math.random() - 0.5 ) * 100;
-            tree.position.z = ( Math.random() - 0.5 ) * 100;
-            tree.position.y = 2; // 树的高度修正
+            // 调整模型大小 (AI生成的模型有时候巨大，有时候巨小)
+            model.scale.set(1, 1, 1); 
+            // 调整位置
+            model.position.set(0, 0, 0);
 
-            // 随机大小
-            const scale = Math.random() * 1.5 + 0.5;
-            tree.scale.set(scale, scale * 1.5, scale);
+            // 【可选】强制变成线框风格 (符合 Bear 71 风格)
+            // 如果你想要保留原本的颜色，把下面这几行注释掉或删掉
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshBasicMaterial({
+                        color: 0x00ffcc, // 青色线框
+                        wireframe: true  // 开启线框模式
+                    });
+                }
+            });
 
-            // 稍微随机一点旋转
-            tree.rotation.y = Math.random() * Math.PI;
+            scene.add(model);
+            
+            // 加载完成后隐藏文字
+            document.getElementById('loading').style.display = 'none';
 
-            scene.add( tree );
-        }
+        }, undefined, function ( error ) {
+            console.error( error );
+            document.getElementById('loading').innerText = '加载失败，请检查文件名！';
+        } );
 
-        // --- 5. 添加漂浮的数据粒子 ---
-        const particlesGeometry = new THREE.BufferGeometry();
-        const particleCount = 2000;
-        const posArray = new Float32Array(particleCount * 3);
+        // 7. 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
 
-        for(let i = 0; i < particleCount * 3; i++) {
-            // 粒子散布在更广的空间
-            posArray[i] = (Math.random() - 0.5) * 150; 
-        }
-
-        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-        const particlesMaterial = new THREE.PointsMaterial({
-            size: 0.1,
-            color: 0xffffff,
-            transparent: true,
-            opacity: 0.8
-        });
-        const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
-        scene.add(particlesMesh);
-
-        // --- 6. 动画循环 ---
+        // 8. 动画
         function animate() {
             requestAnimationFrame(animate);
-
-            controls.update(); // 更新控制器状态
-
-            // 让粒子缓慢旋转，增加动态感
-            particlesMesh.rotation.y += 0.0005;
-
-            // 渲染
+            controls.update();
             renderer.render(scene, camera);
         }
-
         animate();
 
-        // --- 7. 窗口自适应 ---
-        window.addEventListener('resize', onWindowResize);
-        function onWindowResize() {
+        // 窗口适配
+        window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+        });
     </script>
 </body>
 </html>
