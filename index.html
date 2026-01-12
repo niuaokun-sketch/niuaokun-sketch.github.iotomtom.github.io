@@ -12,33 +12,52 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
         
-        /* --- 2. 六边形光标 (改为深色以适应白底) --- */
+        /* --- 2. 六边形光标 (完全透明镂空版) --- */
         #cursor-hex {
             position: absolute; pointer-events: none; z-index: 1000;
             width: 50px; height: 50px;
             left: 0; top: 0;
             transform: translate(-50%, -50%);
-            /* 六边形切割 */
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-            background: rgba(0, 0, 0, 0.05); /* 极淡的灰色填充 */
+            /* 只保留边框逻辑，去掉了背景色 */
+            background: transparent; 
             display: flex; justify-content: center; align-items: center;
             transition: all 0.2s ease;
         }
-        /* 描边 */
+
+        /* 制作镂空边框：用一个大六边形(黑)垫底，中间挖空 */
+        /* 外层(边框颜色) */
         #cursor-hex::before {
             content: ''; position: absolute; width: 100%; height: 100%;
-            background: #333; /* 深色边框 */
+            background: #333; /* 边框颜色 */
             clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-            z-index: -1; transform: scale(1.08); 
+            z-index: -1; 
         }
-        #cursor-hex::after {
-            content: ''; position: absolute; width: 92%; height: 92%;
-            background: #fff; /* 中间镂空成白色 */
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-            z-index: 0;
+        /* 内层(挖空) - 这里设为透明或者跟背景色一致，为了透视效果，我们直接用 clip-path 的 border hack 比较难，
+           最简单的方法是用 mask，但为了兼容性，我们把内层设为 transparent 并稍微缩小，实际上 clip-path 无法直接做 stroke。
+           所以这里用一个伪元素做遮罩是行不通的（因为要透明）。
+           
+           >>> 修正方案：改用 SVG 做完美的透明六边形边框 <<< 
+        */
+        #cursor-hex {
+            /* 重置上面的 CSS 样式，改用 SVG 背景图实现完美镂空 */
+            background: none;
+            clip-path: none;
         }
+        #cursor-hex::before, #cursor-hex::after { content: none; } /* 清除之前的伪元素 */
+
+        /* 使用 SVG 绘制六边形边框 */
+        #cursor-svg {
+            width: 100%; height: 100%;
+            fill: none;
+            stroke: #333; /* 边框深灰色 */
+            stroke-width: 2;
+            transition: stroke 0.2s;
+        }
+
+        /* 中心准星 */
         #cursor-center {
-            width: 4px; height: 4px; background: #333; border-radius: 50%; z-index: 2;
+            position: absolute;
+            width: 4px; height: 4px; background: #333; border-radius: 50%; 
         }
 
         /* 捕捉状态 */
@@ -46,29 +65,30 @@
             width: 70px; height: 70px;
             transform: translate(-50%, -50%) rotate(30deg);
         }
-        .capturing #cursor-hex::before { background: #ff4444; }
+        .capturing #cursor-svg { stroke: #ff4444; stroke-width: 3; }
         .capturing #cursor-center { background: #ff4444; }
 
-        /* --- 3. 资料面板 (清新风格) --- */
+        /* --- 3. 资料面板 --- */
         #data-panel {
             position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
             width: 280px; padding: 30px;
-            background: rgba(255, 255, 255, 0.9); /* 白色半透明 */
+            background: rgba(255, 255, 255, 0.85); /* 稍微降低不透明度 */
             border: 1px solid #ddd;
-            border-left: 5px solid #333;
+            border-left: 4px solid #333;
             color: #333;
             display: none; 
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            backdrop-filter: blur(8px); /* 磨砂玻璃效果 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            border-radius: 0 8px 8px 0;
         }
-        h2 { margin: 0 0 15px 0; font-size: 24px; letter-spacing: -1px; }
+        h2 { margin: 0 0 15px 0; font-size: 24px; letter-spacing: -0.5px; }
         .tag { 
-            display: inline-block; background: #eee; 
+            display: inline-block; background: #f0f0f0; 
             padding: 4px 8px; font-size: 10px; border-radius: 4px; 
-            margin-bottom: 20px; font-weight: bold; color: #666;
+            margin-bottom: 20px; font-weight: bold; color: #888;
         }
-        .stat-item { margin-bottom: 10px; font-size: 12px; }
-        .bar-bg { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 4px;}
+        .stat-item { margin-bottom: 12px; font-size: 11px; font-weight: bold; letter-spacing: 1px; color: #555; }
+        .bar-bg { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 5px;}
         .bar-fill { height: 100%; background: #333; width: 0%; border-radius: 3px; }
 
         /* --- 4. 顶部 UI --- */
@@ -76,19 +96,24 @@
             position: absolute; top: 30px; left: 40px; color: #333;
             pointer-events: none;
         }
-        h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 1px; }
-        p { margin: 5px 0 0 0; font-size: 12px; color: #999; }
+        h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: 2px; }
+        p { margin: 5px 0 0 0; font-size: 11px; color: #999; text-transform: uppercase; }
     </style>
 </head>
 <body>
 
-    <!-- 光标 -->
-    <div id="cursor-hex"><div id="cursor-center"></div></div>
+    <!-- 🌟 新版光标：使用 SVG 实现完美透明镂空 -->
+    <div id="cursor-hex">
+        <svg id="cursor-svg" viewBox="0 0 100 100">
+            <polygon points="50 5, 95 27.5, 95 72.5, 50 95, 5 72.5, 5 27.5" />
+        </svg>
+        <div id="cursor-center"></div>
+    </div>
 
     <!-- UI -->
     <div id="ui-header">
         <h1>ECO-MONITOR</h1>
-        <p>Live Data Stream // Sector 7</p>
+        <p>Live Bio-Data // Sector 7</p>
     </div>
 
     <!-- 资料面板 -->
@@ -97,15 +122,15 @@
         <h2 id="panel-name">Target Name</h2>
         
         <div class="stat-item">
-            TOXICITY
-            <div class="bar-bg"><div class="bar-fill" id="bar-tox" style="background: #ff4444;"></div></div>
+            TOXICITY LEVEL
+            <div class="bar-bg"><div class="bar-fill" id="bar-tox" style="background: #ff6b6b;"></div></div>
         </div>
         <div class="stat-item">
-            ADAPTATION
-            <div class="bar-bg"><div class="bar-fill" id="bar-adp" style="background: #44cc88;"></div></div>
+            GENETIC DEVIATION
+            <div class="bar-bg"><div class="bar-fill" id="bar-adp" style="background: #4ecdc4;"></div></div>
         </div>
         
-        <p style="font-size:12px; line-height:1.6; color:#666; margin-top:20px;" id="panel-desc">
+        <p style="font-size:12px; line-height:1.6; color:#777; margin-top:20px;" id="panel-desc">
             Description text goes here...
         </p>
     </div>
@@ -119,7 +144,7 @@
         }
     </script>
 
-    <!-- 🌟 扁平化圆点着色器 (无光照，纯色块) -->
+    <!-- 🌟 Shader 调整：缩小避让半径 -->
     <script type="x-shader/x-vertex" id="vertexShader">
         uniform float uTime;
         uniform vec3 uMouse;
@@ -131,22 +156,23 @@
             vColor = customColor;
             vec3 pos = position;
 
-            // --- 鼠标交互：平滑避让 ---
-            // 只在 XZ 平面产生推力，保持扁平感
+            // --- 鼠标交互：微小避让 ---
             float dist = distance(pos.xz, uMouse.xz);
-            float radius = 15.0; // 影响半径
+            
+            // ⬇️ 修改点：半径从 15.0 改为 7.0 (范围减半)
+            float radius = 7.0; 
             
             if (dist < radius) {
                 vec3 dir = normalize(pos - uMouse);
                 float force = (radius - dist) / radius;
-                // 更加柔和的推力，点会向四周滑开
-                pos.x += dir.x * force * 5.0; 
-                pos.z += dir.z * force * 5.0;
+                // 推力依然平滑
+                pos.x += dir.x * force * 3.0; 
+                pos.z += dir.z * force * 3.0;
             }
 
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
             
-            // 保持点的大小相对稳定，不随距离缩放太剧烈，增加扁平感
+            // 保持点的大小
             gl_PointSize = size * (200.0 / -mvPosition.z); 
             gl_Position = projectionMatrix * mvPosition;
         }
@@ -156,18 +182,10 @@
         varying vec3 vColor;
 
         void main() {
-            // --- 绘制完美的扁平圆 ---
-            // 计算像素距离中心的距离
+            // 扁平圆绘制
             float dist = length(gl_PointCoord - vec2(0.5));
-            
-            // 边缘平滑 (Anti-aliasing)
-            // 如果距离大于 0.5，透明度为 0；在 0.4 到 0.5 之间渐变
             float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
-
-            // 如果完全透明，直接丢弃，优化性能
             if (alpha < 0.01) discard;
-
-            // 输出纯色，没有高光，没有阴影
             gl_FragColor = vec4(vColor, alpha); 
         }
     </script>
@@ -176,21 +194,18 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- 1. 场景设置 ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xffffff); // 白底
-        scene.fog = new THREE.FogExp2(0xffffff, 0.012); // 白色雾气，让远处消失
+        scene.background = new THREE.Color(0xffffff);
+        scene.fog = new THREE.FogExp2(0xffffff, 0.012);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 50, 70); // 俯视视角
+        camera.position.set(0, 50, 70);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        // 关键：防止不同屏幕色差
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. 交互射线 ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         const mouseWorld = new THREE.Vector3(999, 999, 999);
@@ -201,68 +216,57 @@
         hitPlane.rotation.x = -Math.PI / 2;
         scene.add(hitPlane);
 
-        // --- 3. 生成流线型岛屿地形 ---
+        // --- 地形生成 ---
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const colors = [];
         const sizes = [];
 
-        // Bear 71 经典配色
-        const colWater = new THREE.Color("#44AAFF"); // 清新的蓝
-        const colLand1 = new THREE.Color("#88CC44"); // 嫩绿
-        const colLand2 = new THREE.Color("#66AA33"); // 中绿
-        const colLand3 = new THREE.Color("#DDEEAA"); // 浅黄绿 (高地)
+        // ⬇️ 修改点：颜色调整
+        const colWater = new THREE.Color("#99DDFF"); // 浅蓝色 (更清新)
+        const colLand1 = new THREE.Color("#88CC44"); 
+        const colLand2 = new THREE.Color("#66AA33"); 
+        const colLand3 = new THREE.Color("#DDEEAA"); 
 
-        // 扩大扫描范围，但只保留圆内的点
         const range = 180; 
-        const gap = 2.5; // 间距变大，更透气！(之前是1.2)
+        const gap = 2.5; 
 
         for (let x = -range; x < range; x += gap) {
             for (let z = -range; z < range; z += gap) {
                 
-                // 1. 岛屿形状算法 (流线型边界)
                 const distToCenter = Math.sqrt(x*x + z*z);
-                
-                // 创造不规则边界：基础半径 + 正弦波干扰
                 const maxRadius = 120 + Math.sin(Math.atan2(z, x) * 5.0) * 15.0 + Math.cos(x * 0.1) * 10.0;
                 
-                // 如果超出了不规则边界，就不生成点 -> 形成岛屿形状
                 if (distToCenter > maxRadius) continue;
 
-                // 2. 地形高度 (Perlin Noise 模拟)
-                // 这里用简单的 sin/cos 组合模拟平缓丘陵
                 let y = Math.sin(x * 0.05) * 8 + Math.cos(z * 0.05) * 8;
                 
-                // 3. 决定点的类型
                 let pSize = 0.0;
                 let pColor = new THREE.Color();
                 let keepPoint = false;
 
                 if (y < -3) {
-                    // 🌊 河流/湖泊
-                    // 逻辑：在低洼处，点比较大且颜色统一
-                    if (Math.random() > 0.4) { // 稍微稀疏一点
+                    // 河流
+                    if (Math.random() > 0.4) {
                         pSize = 4.0; 
                         pColor = colWater;
                         keepPoint = true;
                     }
                 } else {
-                    // 🌿 草地
-                    // 逻辑：非常稀疏，透气感
-                    if (Math.random() > 0.8) { // 只保留 20% 的点，大间隙！
+                    // ⬇️ 修改点：草地密度调整
+                    // 之前是 > 0.8 (保留20%)，现在改为 > 0.5 (保留50%)，密度增加一倍多
+                    if (Math.random() > 0.5) { 
                         keepPoint = true;
                         
-                        // 随机大小和颜色
                         const r = Math.random();
                         if (r > 0.95) {
-                            // 偶发的大绿点
-                            pSize = 5.0;
+                            pSize = 5.0; // 偶发大点
                             pColor = colLand1;
                         } else if (r > 0.6) {
                             pSize = 2.5;
                             pColor = colLand2;
                         } else {
-                            pSize = 1.8;
+                            pSize = 1.5; // 小点变多
                             pColor = colLand3;
                         }
                     }
@@ -280,7 +284,6 @@
         geometry.setAttribute('customColor', new THREE.Float32BufferAttribute(colors, 3));
         geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
 
-        // Shader 材质
         const shaderMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 uMouse: { value: new THREE.Vector3(0, 0, 0) }
@@ -293,21 +296,19 @@
         const terrain = new THREE.Points(geometry, shaderMaterial);
         scene.add(terrain);
 
-        // --- 4. 动物 (三角形浮标) ---
+        // --- 动物逻辑 ---
         class TriangleAnimal {
             constructor(name, type, color, startPos) {
                 this.name = name;
-                this.info = { type: type, desc: "Detected abnormal genetic signature." };
+                this.info = { type: type, desc: "Detected abnormal genetic signature due to environmental stress." };
                 
-                // 扁平的三角形 (Cone 压扁)
                 const geo = new THREE.ConeGeometry(2, 4, 3);
                 const mat = new THREE.MeshBasicMaterial({ color: color, wireframe: true });
                 this.mesh = new THREE.Mesh(geo, mat);
                 
-                this.mesh.rotation.x = Math.PI; // 倒三角
+                this.mesh.rotation.x = Math.PI;
                 this.mesh.position.copy(startPos);
                 
-                // 目标移动逻辑
                 this.target = startPos.clone();
                 this.speed = 0.08;
                 
@@ -316,7 +317,6 @@
             }
 
             pickTarget() {
-                // 在岛屿范围内随机移动
                 const angle = Math.random() * Math.PI * 2;
                 const radius = Math.random() * 80;
                 this.target.x = Math.cos(angle) * radius;
@@ -329,24 +329,22 @@
                 
                 dir.normalize();
                 this.mesh.position.add(dir.multiplyScalar(this.speed));
-                
-                // 缓慢旋转
                 this.mesh.rotation.y += 0.02;
                 
-                // 悬浮高度 (基于地形高度估算)
                 const y = Math.sin(this.mesh.position.x * 0.05) * 8 + Math.cos(this.mesh.position.z * 0.05) * 8;
-                this.mesh.position.y = y + 8; // 悬浮在地形上方 8 单位
+                this.mesh.position.y = y + 8;
             }
         }
 
         const animals = [
-            new TriangleAnimal("TURTLE-X", "Mutant Turtle", 0xff4444, new THREE.Vector3(0, 10, 0)),
-            new TriangleAnimal("CRAB-9", "Plastic Crab", 0xffaa00, new THREE.Vector3(30, 10, 20)),
+            new TriangleAnimal("TURTLE-X", "Polymer Turtle", 0xff6b6b, new THREE.Vector3(0, 10, 0)),
+            new TriangleAnimal("CRAB-9", "Cap Hermit", 0xffaa00, new THREE.Vector3(30, 10, 20)),
             new TriangleAnimal("BIRD-OIL", "Oil Cormorant", 0x4444ff, new THREE.Vector3(-30, 10, -30)),
         ];
 
-        // --- 5. 事件交互 ---
+        // --- 交互 ---
         const cursor = document.getElementById('cursor-hex');
+        const cursorSvg = document.getElementById('cursor-svg');
         const panel = document.getElementById('data-panel');
         let lockedTarget = null;
 
@@ -365,13 +363,11 @@
             }
         });
 
-        // --- 6. 动画 ---
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.autoRotate = true;
         controls.autoRotateSpeed = 0.5;
 
-        // 手动操作时停止自动旋转
         controls.addEventListener('start', () => { controls.autoRotate = false; });
 
         function animate() {
@@ -382,17 +378,15 @@
             animals.forEach(anim => {
                 anim.update();
                 
-                // 捕捉逻辑
                 const dist = new THREE.Vector2(anim.mesh.position.x, anim.mesh.position.z)
                     .distanceTo(new THREE.Vector2(mouseWorld.x, mouseWorld.z));
 
-                if (dist < 8) { // 捕捉半径
+                if (dist < 8) { 
                     isCapturing = true;
                     anim.mesh.scale.setScalar(1.5);
                     
                     if (lockedTarget !== anim) {
                         lockedTarget = anim;
-                        // 更新 UI
                         document.getElementById('panel-id').innerText = "ID: " + Math.floor(Math.random()*1000);
                         document.getElementById('panel-name').innerText = anim.name;
                         document.getElementById('panel-desc').innerText = anim.info.desc;
