@@ -2,17 +2,17 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>ECO-MONITOR | 最终版</title>
+    <title>ECO-MONITOR | 层次增强版</title>
     <style>
         /* --- 1. 基础样式 --- */
         body { 
             margin: 0; overflow: hidden; 
             background-color: #ffffff; 
-            cursor: none; /* 隐藏系统鼠标，完全依靠 3D 光标 */ 
+            cursor: none; /* 隐藏系统鼠标 */ 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* --- 2. 资料面板 (保持清新风格) --- */
+        /* --- 2. 资料面板 --- */
         #data-panel {
             position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
             width: 280px; padding: 30px;
@@ -70,7 +70,7 @@
         }
     </script>
 
-    <!-- Shader 保持不变 (微小避让) -->
+    <!-- Shader: 保持微小避让 -->
     <script type="x-shader/x-vertex" id="vertexShader">
         uniform float uTime;
         uniform vec3 uMouse;
@@ -80,6 +80,7 @@
         void main() {
             vColor = customColor;
             vec3 pos = position;
+            // 鼠标避让逻辑
             float dist = distance(pos.xz, uMouse.xz);
             float radius = 7.0; 
             if (dist < radius) {
@@ -126,19 +127,18 @@
         scene.add(cursorGroup);
 
         // A. 六边形环 (加粗)
-        // RingGeometry(内径, 外径, 边数) -> 边数=6 就是六边形
-        const hexGeometry = new THREE.RingGeometry(2.5, 3.2, 6); 
+        const hexGeometry = new THREE.RingGeometry(2.8, 3.8, 6); 
         const hexMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
         const cursorHex = new THREE.Mesh(hexGeometry, hexMaterial);
-        cursorHex.rotation.x = -Math.PI / 2; // 躺平
+        cursorHex.rotation.x = -Math.PI / 2;
         cursorGroup.add(cursorHex);
 
-        // B. 倒三角形指针 (Suspended Marker)
-        const triGeometry = new THREE.ConeGeometry(0.5, 1.5, 3); // 3边锥体就是三角
+        // B. 倒三角形指针
+        const triGeometry = new THREE.ConeGeometry(0.6, 1.8, 3);
         const triMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const cursorTri = new THREE.Mesh(triGeometry, triMaterial);
-        cursorTri.rotation.x = Math.PI; // 尖朝下
-        cursorTri.position.y = 4; // 悬浮在圆环上方
+        cursorTri.rotation.x = Math.PI; 
+        cursorTri.position.y = 5; 
         cursorGroup.add(cursorTri);
 
         // --- 3. 射线交互平面 ---
@@ -151,20 +151,22 @@
         hitPlane.rotation.x = -Math.PI / 2;
         scene.add(hitPlane);
 
-        // --- 4. 地形系统 (保持你的参数) ---
+        // --- 4. 地形系统 (增加层次感) ---
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const colors = [];
         const sizes = [];
 
-        const colWater = new THREE.Color("#99DDFF");
+        // 配色方案
+        const colWater = new THREE.Color("#99DDFF"); 
         const colLand1 = new THREE.Color("#88CC44"); 
         const colLand2 = new THREE.Color("#66AA33"); 
         const colLand3 = new THREE.Color("#DDEEAA"); 
+        // 新增：树冠/深色植被 (增加层次)
+        const colCanopy = new THREE.Color("#3A6B29"); // 深墨绿
 
         const range = 180; const gap = 2.5; 
 
-        // 提取高度函数供光标使用
         function getElevation(x, z) {
             return Math.sin(x * 0.05) * 8 + Math.cos(z * 0.05) * 8;
         }
@@ -178,17 +180,28 @@
                 let y = getElevation(x, z);
                 
                 let pSize = 0.0; let pColor = new THREE.Color(); let keepPoint = false;
+                
                 if (y < -3) {
+                    // 河流
                     if (Math.random() > 0.4) { pSize = 4.0; pColor = colWater; keepPoint = true; }
                 } else {
+                    // 植被层
                     if (Math.random() > 0.5) { 
                         keepPoint = true;
                         const r = Math.random();
-                        if (r > 0.95) { pSize = 5.0; pColor = colLand1; }
+                        
+                        // 🌟 增加层次感逻辑 🌟
+                        if (r > 0.96) { 
+                            // 树冠层 (Canopy)：更大，颜色更深，位置更高
+                            pSize = 7.0; // 巨大
+                            pColor = colCanopy;
+                            y += 3.0; // 悬浮在地面上方，制造视差遮挡效果
+                        } 
                         else if (r > 0.6) { pSize = 2.5; pColor = colLand2; }
                         else { pSize = 1.5; pColor = colLand3; }
                     }
                 }
+
                 if (keepPoint) {
                     positions.push(x, y, z);
                     colors.push(pColor.r, pColor.g, pColor.b);
@@ -204,7 +217,10 @@
             uniforms: { uMouse: { value: new THREE.Vector3(0, 0, 0) } },
             vertexShader: document.getElementById('vertexShader').textContent,
             fragmentShader: document.getElementById('fragmentShader').textContent,
-            transparent: true
+            transparent: true,
+            // 开启深度测试，确保大的点能正确遮挡小的点
+            depthTest: true, 
+            depthWrite: false
         });
         const terrain = new THREE.Points(geometry, shaderMaterial);
         scene.add(terrain);
@@ -247,9 +263,9 @@
             new TriangleAnimal("BIRD-OIL", "Oil Cormorant", 0x4444ff, new THREE.Vector3(-30, 10, -30)),
         ];
 
-        // --- 6. 交互逻辑升级 ---
-        let lockedTarget = null;
-        const mouseWorld = new THREE.Vector3(); // 鼠标射线位置
+        // --- 6. 交互逻辑 (跟随鼠标 + 划过变大) ---
+        let hoveredTarget = null;
+        const mouseWorld = new THREE.Vector3(); 
         
         document.addEventListener('mousemove', (e) => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -258,34 +274,28 @@
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObject(hitPlane);
             if (intersects.length > 0) {
-                // 如果没有锁定动物，光标跟随鼠标射线
-                if (!lockedTarget) {
-                    mouseWorld.copy(intersects[0].point);
-                }
-                // 更新 Shader 排斥
+                // 始终跟随鼠标射线，不被吸走
+                mouseWorld.copy(intersects[0].point);
                 shaderMaterial.uniforms.uMouse.value.copy(intersects[0].point);
             }
         });
 
-        // --- 7. 控制器限制 (防止看到地图底部) ---
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.autoRotate = true;
         controls.autoRotateSpeed = 0.5;
-        
-        // 关键设置：限制垂直旋转角度
-        controls.maxPolarAngle = Math.PI / 2 - 0.1; // 略小于90度，永远无法看穿底面
-        controls.minPolarAngle = 0; // 允许完全垂直俯视
+        controls.maxPolarAngle = Math.PI / 2 - 0.1; // 限制视角
+        controls.minPolarAngle = 0;
 
         controls.addEventListener('start', () => { controls.autoRotate = false; });
 
-        // --- 8. 动画循环 ---
+        // --- 7. 动画循环 ---
         const panel = document.getElementById('data-panel');
 
         function animate() {
             requestAnimationFrame(animate);
             
-            let hoverAnimal = null;
+            let currentHover = null;
 
             // 1. 动物更新 & 距离检测
             animals.forEach(anim => {
@@ -296,55 +306,48 @@
                     .distanceTo(new THREE.Vector2(mouseWorld.x, mouseWorld.z));
 
                 if (dist < 8) { 
-                    hoverAnimal = anim; // 找到当前悬停的动物
+                    currentHover = anim; 
                 } 
             });
 
-            // 2. 锁定与光标逻辑 (平滑过渡)
-            if (hoverAnimal) {
-                lockedTarget = hoverAnimal;
-                
-                // A. 锁定位置：光标吸附到动物正下方
-                const targetX = hoverAnimal.mesh.position.x;
-                const targetZ = hoverAnimal.mesh.position.z;
-                // 计算地形高度
-                const targetY = getElevation(targetX, targetZ);
-                
-                // 线性插值 (Lerp) 平滑移动光标
-                cursorGroup.position.x += (targetX - cursorGroup.position.x) * 0.1;
-                cursorGroup.position.z += (targetZ - cursorGroup.position.z) * 0.1;
-                cursorGroup.position.y += (targetY - cursorGroup.position.y) * 0.1;
+            // 2. 光标跟随逻辑 (始终跟随鼠标)
+            // 计算光标的目标位置 (基于鼠标 XZ + 地形高度 Y)
+            const terrainY = getElevation(mouseWorld.x, mouseWorld.z);
+            
+            // 平滑跟随
+            cursorGroup.position.x += (mouseWorld.x - cursorGroup.position.x) * 0.2;
+            cursorGroup.position.z += (mouseWorld.z - cursorGroup.position.z) * 0.2;
+            cursorGroup.position.y += (terrainY - cursorGroup.position.y) * 0.2;
 
-                // B. 放大变色
+            // 3. 状态反馈 (划过时变大)
+            if (currentHover) {
+                // 如果划过了动物
+                if (hoveredTarget !== currentHover) {
+                    hoveredTarget = currentHover;
+                    // 显示信息
+                    document.getElementById('panel-name').innerText = currentHover.name;
+                    document.getElementById('panel-desc').innerText = currentHover.info.desc;
+                    document.getElementById('bar-tox').style.width = "85%";
+                    document.getElementById('bar-adp').style.width = "72%";
+                    panel.style.display = 'block';
+                }
+
+                // 变大动画 (Scale up)
                 cursorGroup.scale.lerp(new THREE.Vector3(2.5, 2.5, 2.5), 0.1);
-                hexMaterial.color.set(0xff4444); // 红色警戒
-
-                // C. 显示 UI
-                document.getElementById('panel-name').innerText = hoverAnimal.name;
-                document.getElementById('panel-desc').innerText = hoverAnimal.info.desc;
-                document.getElementById('bar-tox').style.width = "85%";
-                document.getElementById('bar-adp').style.width = "72%";
-                panel.style.display = 'block';
-
-            } else {
-                lockedTarget = null;
-
-                // A. 跟随鼠标：位置基于鼠标射线和地形高度
-                const targetY = getElevation(mouseWorld.x, mouseWorld.z);
+                hexMaterial.color.set(0xff4444); // 红色
                 
-                cursorGroup.position.x += (mouseWorld.x - cursorGroup.position.x) * 0.2;
-                cursorGroup.position.z += (mouseWorld.z - cursorGroup.position.z) * 0.2;
-                cursorGroup.position.y += (targetY - cursorGroup.position.y) * 0.2;
+            } else {
+                // 离开动物
+                if (hoveredTarget !== null) {
+                    hoveredTarget = null;
+                    panel.style.display = 'none';
+                }
 
-                // B. 恢复正常大小
+                // 恢复原状
                 cursorGroup.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
-                hexMaterial.color.set(0x333333); // 恢复深灰
-
-                // C. 隐藏 UI
-                panel.style.display = 'none';
+                hexMaterial.color.set(0x333333); // 深灰
             }
 
-            // 让光标缓慢旋转，增加科技感
             cursorHex.rotation.z += 0.01;
 
             controls.update();
