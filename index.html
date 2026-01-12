@@ -2,63 +2,82 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>ECO-MONITOR | 层次增强版</title>
+    <title>ECO-MONITOR | Bear 71 复刻版</title>
     <style>
         /* --- 1. 基础样式 --- */
         body { 
             margin: 0; overflow: hidden; 
-            background-color: #ffffff; 
-            cursor: none; /* 隐藏系统鼠标 */ 
+            background-color: #ffffff; /* 纯白底色 */
+            cursor: none; 
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         }
 
-        /* --- 2. 资料面板 --- */
+        /* --- 2. UI 面板 --- */
         #data-panel {
             position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
             width: 280px; padding: 30px;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             border: 1px solid #ddd;
-            border-left: 5px solid #333;
+            border-top: 4px solid #ccaa00; /* 土黄色点缀 */
             color: #333;
             display: none; 
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.05);
             z-index: 10;
         }
-        h2 { margin: 0 0 15px 0; font-size: 24px; letter-spacing: -1px; }
+        h2 { margin: 0 0 10px 0; font-size: 20px; letter-spacing: 1px; font-weight: bold; color: #443300; }
         .tag { 
-            display: inline-block; background: #eee; 
-            padding: 4px 8px; font-size: 10px; border-radius: 4px; 
-            margin-bottom: 20px; font-weight: bold; color: #666;
+            display: inline-block; background: #333; color: #fff;
+            padding: 3px 6px; font-size: 10px; margin-bottom: 15px; 
+            font-family: monospace;
         }
-        .stat-item { margin-bottom: 10px; font-size: 12px; }
-        .bar-bg { width: 100%; height: 6px; background: #eee; border-radius: 3px; overflow: hidden; margin-top: 4px;}
-        .bar-fill { height: 100%; background: #333; width: 0%; border-radius: 3px; }
+        .stat-item { margin-bottom: 8px; font-size: 11px; font-weight: bold; color: #666; letter-spacing: 1px; }
+        .bar-bg { width: 100%; height: 4px; background: #eee; margin-top: 4px;}
+        .bar-fill { height: 100%; background: #333; width: 0%; }
 
         /* --- 3. 顶部 UI --- */
         #ui-header {
             position: absolute; top: 30px; left: 40px; color: #333;
             pointer-events: none; z-index: 10;
         }
-        h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 1px; }
-        p { margin: 5px 0 0 0; font-size: 12px; color: #999; }
+        h1 { margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -1px; }
+        p { margin: 5px 0 0 0; font-size: 11px; color: #888; letter-spacing: 2px; }
+
+        /* --- 4. 动物标签 (参考图里的棕色牌子) --- */
+        .bear71-label {
+            position: absolute;
+            background: #8B4513; /* 棕色 */
+            color: white;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            pointer-events: none;
+            transform: translate(-50%, -150%);
+            white-space: nowrap;
+        }
+        .bear71-label::after {
+            content: ''; position: absolute; bottom: -6px; left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 6px solid #8B4513;
+        }
     </style>
 </head>
 <body>
 
     <!-- UI -->
     <div id="ui-header">
-        <h1>ECO-MONITOR</h1>
-        <p>Live Bio-Data // Sector 7</p>
+        <h1>BEAR 71</h1>
+        <p>INTERACTIVE DOCUMENTARY // LIVE FEED</p>
     </div>
 
     <!-- 资料面板 -->
     <div id="data-panel">
         <span class="tag" id="panel-id">ID: 001</span>
-        <h2 id="panel-name">Target Name</h2>
-        <div class="stat-item">TOXICITY<div class="bar-bg"><div class="bar-fill" id="bar-tox" style="background: #ff4444;"></div></div></div>
-        <div class="stat-item">ADAPTATION<div class="bar-bg"><div class="bar-fill" id="bar-adp" style="background: #44cc88;"></div></div></div>
-        <p style="font-size:12px; line-height:1.6; color:#666; margin-top:20px;" id="panel-desc">...</p>
+        <h2 id="panel-name">TARGET</h2>
+        <div class="stat-item">HR <div class="bar-bg"><div class="bar-fill" id="bar-tox" style="background: #cc3333;"></div></div></div>
+        <div class="stat-item">MOV <div class="bar-bg"><div class="bar-fill" id="bar-adp" style="background: #33aa66;"></div></div></div>
+        <p style="font-size:11px; line-height:1.5; color:#888; margin-top:15px;" id="panel-desc">...</p>
     </div>
 
     <script type="importmap">
@@ -70,9 +89,8 @@
         }
     </script>
 
-    <!-- Shader: 保持微小避让 -->
+    <!-- Shader: 扁平圆点 + 鼠标微小避让 -->
     <script type="x-shader/x-vertex" id="vertexShader">
-        uniform float uTime;
         uniform vec3 uMouse;
         attribute float size;
         attribute vec3 customColor;
@@ -80,17 +98,20 @@
         void main() {
             vColor = customColor;
             vec3 pos = position;
-            // 鼠标避让逻辑
+            
+            // 鼠标交互
             float dist = distance(pos.xz, uMouse.xz);
-            float radius = 7.0; 
+            float radius = 10.0; 
             if (dist < radius) {
                 vec3 dir = normalize(pos - uMouse);
                 float force = (radius - dist) / radius;
-                pos.x += dir.x * force * 3.0; 
-                pos.z += dir.z * force * 3.0;
+                pos.x += dir.x * force * 4.0; 
+                pos.z += dir.z * force * 4.0;
             }
+            
             vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-            gl_PointSize = size * (200.0 / -mvPosition.z); 
+            // 调整大小缩放因子，让远处的点不至于太小
+            gl_PointSize = size * (300.0 / -mvPosition.z); 
             gl_Position = projectionMatrix * mvPosition;
         }
     </script>
@@ -98,10 +119,10 @@
     <script type="x-shader/x-fragment" id="fragmentShader">
         varying vec3 vColor;
         void main() {
+            // 绘制完美的扁平圆
             float dist = length(gl_PointCoord - vec2(0.5));
-            float alpha = 1.0 - smoothstep(0.4, 0.5, dist);
-            if (alpha < 0.01) discard;
-            gl_FragColor = vec4(vColor, alpha); 
+            if (dist > 0.5) discard; // 硬边缘切割，符合图片里的锐利感
+            gl_FragColor = vec4(vColor, 1.0); 
         }
     </script>
 
@@ -109,106 +130,114 @@
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- 1. 场景 ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xffffff);
-        scene.fog = new THREE.FogExp2(0xffffff, 0.012);
+        // 白色雾气，制造远处消失的效果
+        scene.fog = new THREE.FogExp2(0xffffff, 0.015);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 50, 70);
+        // 视角调整：放低一点，侧看山丘，更有 Bear 71 的感觉
+        camera.position.set(0, 30, 80);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. 3D 光标系统 (Mesh Cursor) ---
+        // --- 3D 光标系统 ---
         const cursorGroup = new THREE.Group();
         scene.add(cursorGroup);
 
-        // A. 六边形环 (加粗)
-        const hexGeometry = new THREE.RingGeometry(2.8, 3.8, 6); 
-        const hexMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+        // 六边形环 (加粗)
+        const hexGeometry = new THREE.RingGeometry(3.0, 4.0, 6); 
+        const hexMaterial = new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide });
         const cursorHex = new THREE.Mesh(hexGeometry, hexMaterial);
         cursorHex.rotation.x = -Math.PI / 2;
         cursorGroup.add(cursorHex);
 
-        // B. 倒三角形指针
-        const triGeometry = new THREE.ConeGeometry(0.6, 1.8, 3);
+        // 黑色倒三角 (指向地面)
+        const triGeometry = new THREE.ConeGeometry(0.8, 2.0, 3);
         const triMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
         const cursorTri = new THREE.Mesh(triGeometry, triMaterial);
         cursorTri.rotation.x = Math.PI; 
-        cursorTri.position.y = 5; 
+        cursorTri.position.y = 6; 
         cursorGroup.add(cursorTri);
 
-        // --- 3. 射线交互平面 ---
+        // --- 射线交互 ---
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
-        const hitPlane = new THREE.Mesh(
-            new THREE.PlaneGeometry(500, 500),
-            new THREE.MeshBasicMaterial({ visible: false })
-        );
+        const hitPlane = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshBasicMaterial({ visible: false }));
         hitPlane.rotation.x = -Math.PI / 2;
         scene.add(hitPlane);
 
-        // --- 4. 地形系统 (增加层次感) ---
+        // --- 地形生成 (关键修改：复刻参考图) ---
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const colors = [];
         const sizes = [];
 
-        // 配色方案
-        const colWater = new THREE.Color("#99DDFF"); 
-        const colLand1 = new THREE.Color("#88CC44"); 
-        const colLand2 = new THREE.Color("#66AA33"); 
-        const colLand3 = new THREE.Color("#DDEEAA"); 
-        // 新增：树冠/深色植被 (增加层次)
-        const colCanopy = new THREE.Color("#3A6B29"); // 深墨绿
+        // 🎨 参考图取色
+        const colBase = new THREE.Color("#444444"); // 极小的基底黑点
+        const colWater = new THREE.Color("#66CCFF"); // 亮青蓝
+        const colGrassLight = new THREE.Color("#AACC00"); // 嫩绿 (图片里的高光色)
+        const colGrassDark = new THREE.Color("#558800"); // 深橄榄绿
 
-        const range = 180; const gap = 2.5; 
+        const range = 200; 
+        const gap = 2.0; // 密度：点距 2.0 (更密集)
 
         function getElevation(x, z) {
-            return Math.sin(x * 0.05) * 8 + Math.cos(z * 0.05) * 8;
+            // 创造起伏的山丘
+            return Math.sin(x * 0.04) * 8 + Math.cos(z * 0.04) * 8 + Math.sin(x*0.1 + z*0.1)*2;
         }
 
         for (let x = -range; x < range; x += gap) {
             for (let z = -range; z < range; z += gap) {
-                const distToCenter = Math.sqrt(x*x + z*z);
-                const maxRadius = 120 + Math.sin(Math.atan2(z, x) * 5.0) * 15.0 + Math.cos(x * 0.1) * 10.0;
-                if (distToCenter > maxRadius) continue;
-
+                
+                // 1. 获取地形高度
                 let y = getElevation(x, z);
                 
-                let pSize = 0.0; let pColor = new THREE.Color(); let keepPoint = false;
+                let pSize = 0.0;
+                let pColor = new THREE.Color();
+
+                // 2. 逻辑分层 (复刻参考图逻辑)
                 
-                if (y < -3) {
-                    // 河流
-                    if (Math.random() > 0.4) { pSize = 4.0; pColor = colWater; keepPoint = true; }
-                } else {
-                    // 植被层
-                    if (Math.random() > 0.5) { 
-                        keepPoint = true;
-                        const r = Math.random();
-                        
-                        // 🌟 增加层次感逻辑 🌟
-                        if (r > 0.96) { 
-                            // 树冠层 (Canopy)：更大，颜色更深，位置更高
-                            pSize = 7.0; // 巨大
-                            pColor = colCanopy;
-                            y += 3.0; // 悬浮在地面上方，制造视差遮挡效果
-                        } 
-                        else if (r > 0.6) { pSize = 2.5; pColor = colLand2; }
-                        else { pSize = 1.5; pColor = colLand3; }
+                if (y < -4) {
+                    // --- 🌊 水域 (低洼处) ---
+                    // 图片特征：整齐排列的蓝色点
+                    pSize = 4.0;
+                    pColor = colWater;
+                    // 让水面平一点
+                    y = -4.0 + Math.random() * 0.5;
+                } 
+                else if (y > 2) {
+                    // --- 🌿 山丘 (高处) ---
+                    // 图片特征：巨大的绿色圆点，随高度变大
+                    
+                    // 归一化高度，决定点的大小 (越高的山顶，点越大)
+                    const heightFactor = (y - 2) / 10; 
+                    pSize = 4.0 + heightFactor * 8.0; // 范围 4.0 -> 12.0
+                    
+                    // 随机分配嫩绿和深绿，形成层次
+                    if (Math.random() > 0.4) {
+                        pColor = colGrassLight; // 嫩绿为主
+                    } else {
+                        pColor = colGrassDark;
+                        pSize *= 0.8; // 深色点稍微小一点
                     }
+                } 
+                else {
+                    // --- ⚫️ 基底网格 (中间层) ---
+                    // 图片特征：极小的黑点，铺满背景，勾勒地形
+                    pSize = 0.8; // 非常小
+                    pColor = colBase;
                 }
 
-                if (keepPoint) {
-                    positions.push(x, y, z);
-                    colors.push(pColor.r, pColor.g, pColor.b);
-                    sizes.push(pSize);
-                }
+                positions.push(x, y, z);
+                colors.push(pColor.r, pColor.g, pColor.b);
+                sizes.push(pSize);
             }
         }
+        
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('customColor', new THREE.Float32BufferAttribute(colors, 3));
         geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
@@ -217,26 +246,34 @@
             uniforms: { uMouse: { value: new THREE.Vector3(0, 0, 0) } },
             vertexShader: document.getElementById('vertexShader').textContent,
             fragmentShader: document.getElementById('fragmentShader').textContent,
-            transparent: true,
-            // 开启深度测试，确保大的点能正确遮挡小的点
-            depthTest: true, 
-            depthWrite: false
+            transparent: true
         });
         const terrain = new THREE.Points(geometry, shaderMaterial);
         scene.add(terrain);
 
-        // --- 5. 动物 ---
-        class TriangleAnimal {
+        // --- 动物逻辑 ---
+        class Animal {
             constructor(name, type, color, startPos) {
                 this.name = name;
-                this.info = { type: type, desc: "Genetic anomaly detected. High priority target." };
-                const geo = new THREE.ConeGeometry(2, 4, 3);
-                const mat = new THREE.MeshBasicMaterial({ color: color, wireframe: true });
+                this.info = { desc: "Tracking signal active." };
+                
+                // 动物本体 (三角形)
+                const geo = new THREE.ConeGeometry(1.5, 3.5, 3);
+                const mat = new THREE.MeshBasicMaterial({ color: 0x222222, wireframe: true });
                 this.mesh = new THREE.Mesh(geo, mat);
                 this.mesh.rotation.x = Math.PI;
                 this.mesh.position.copy(startPos);
+                
+                // 棕色标签 (Bear 71 风格)
+                this.labelDiv = document.createElement('div');
+                this.labelDiv.className = 'bear71-label';
+                this.labelDiv.innerText = name;
+                this.labelDiv.style.opacity = '0'; // 默认隐藏，靠近显示
+                this.labelDiv.style.transition = 'opacity 0.3s';
+                document.body.appendChild(this.labelDiv);
+
                 this.target = startPos.clone();
-                this.speed = 0.08;
+                this.speed = 0.05;
                 scene.add(this.mesh);
                 this.pickTarget();
             }
@@ -246,36 +283,47 @@
                 this.target.x = Math.cos(angle) * radius;
                 this.target.z = Math.sin(angle) * radius;
             }
-            update() {
+            update(camera) {
+                // 移动
                 const dir = new THREE.Vector3().subVectors(this.target, this.mesh.position);
                 if (dir.length() < 1) this.pickTarget();
                 dir.normalize();
                 this.mesh.position.add(dir.multiplyScalar(this.speed));
                 this.mesh.rotation.y += 0.02;
                 const y = getElevation(this.mesh.position.x, this.mesh.position.z);
-                this.mesh.position.y = y + 8;
+                this.mesh.position.y = y + 6;
+
+                // 更新 HTML 标签位置 (3D 转 2D 坐标)
+                if (this.labelDiv.style.opacity === '1') {
+                    const tempV = this.mesh.position.clone();
+                    tempV.y += 4; // 标签在头顶
+                    tempV.project(camera);
+                    const x = (tempV.x * .5 + .5) * window.innerWidth;
+                    const y = (tempV.y * -.5 + .5) * window.innerHeight;
+                    this.labelDiv.style.left = x + 'px';
+                    this.labelDiv.style.top = y + 'px';
+                }
             }
         }
 
         const animals = [
-            new TriangleAnimal("TURTLE-X", "Polymer Turtle", 0xff6b6b, new THREE.Vector3(0, 10, 0)),
-            new TriangleAnimal("CRAB-9", "Plastic Crab", 0xffaa00, new THREE.Vector3(30, 10, 20)),
-            new TriangleAnimal("BIRD-OIL", "Oil Cormorant", 0x4444ff, new THREE.Vector3(-30, 10, -30)),
+            new Animal("BEAR 107", "Predator", 0x8B4513, new THREE.Vector3(0, 10, 0)),
+            new Animal("GOLDEN EAGLE 129", "Flying", 0xCCAA00, new THREE.Vector3(30, 10, 20)),
+            new Animal("WOLF 02", "Pack", 0x555555, new THREE.Vector3(-30, 10, -30)),
         ];
 
-        // --- 6. 交互逻辑 (跟随鼠标 + 划过变大) ---
-        let hoveredTarget = null;
-        const mouseWorld = new THREE.Vector3(); 
-        
+        // --- 交互 ---
+        const panel = document.getElementById('data-panel');
+        const mouseWorld = new THREE.Vector3();
+        let lockedTarget = null;
+
         document.addEventListener('mousemove', (e) => {
             mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObject(hitPlane);
             if (intersects.length > 0) {
-                // 始终跟随鼠标射线，不被吸走
-                mouseWorld.copy(intersects[0].point);
+                if (!lockedTarget) mouseWorld.copy(intersects[0].point);
                 shaderMaterial.uniforms.uMouse.value.copy(intersects[0].point);
             }
         });
@@ -283,73 +331,54 @@
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.autoRotate = true;
-        controls.autoRotateSpeed = 0.5;
-        controls.maxPolarAngle = Math.PI / 2 - 0.1; // 限制视角
+        controls.autoRotateSpeed = 0.3;
+        controls.maxPolarAngle = Math.PI / 2 - 0.1;
         controls.minPolarAngle = 0;
-
         controls.addEventListener('start', () => { controls.autoRotate = false; });
-
-        // --- 7. 动画循环 ---
-        const panel = document.getElementById('data-panel');
 
         function animate() {
             requestAnimationFrame(animate);
             
             let currentHover = null;
-
-            // 1. 动物更新 & 距离检测
             animals.forEach(anim => {
-                anim.update();
-                
-                // 计算鼠标与动物的水平距离
+                anim.update(camera);
                 const dist = new THREE.Vector2(anim.mesh.position.x, anim.mesh.position.z)
                     .distanceTo(new THREE.Vector2(mouseWorld.x, mouseWorld.z));
-
-                if (dist < 8) { 
-                    currentHover = anim; 
-                } 
+                if (dist < 8) currentHover = anim;
             });
 
-            // 2. 光标跟随逻辑 (始终跟随鼠标)
-            // 计算光标的目标位置 (基于鼠标 XZ + 地形高度 Y)
-            const terrainY = getElevation(mouseWorld.x, mouseWorld.z);
-            
-            // 平滑跟随
-            cursorGroup.position.x += (mouseWorld.x - cursorGroup.position.x) * 0.2;
-            cursorGroup.position.z += (mouseWorld.z - cursorGroup.position.z) * 0.2;
-            cursorGroup.position.y += (terrainY - cursorGroup.position.y) * 0.2;
-
-            // 3. 状态反馈 (划过时变大)
             if (currentHover) {
-                // 如果划过了动物
-                if (hoveredTarget !== currentHover) {
-                    hoveredTarget = currentHover;
-                    // 显示信息
-                    document.getElementById('panel-name').innerText = currentHover.name;
-                    document.getElementById('panel-desc').innerText = currentHover.info.desc;
-                    document.getElementById('bar-tox').style.width = "85%";
-                    document.getElementById('bar-adp').style.width = "72%";
-                    panel.style.display = 'block';
-                }
-
-                // 变大动画 (Scale up)
-                cursorGroup.scale.lerp(new THREE.Vector3(2.5, 2.5, 2.5), 0.1);
-                hexMaterial.color.set(0xff4444); // 红色
+                lockedTarget = currentHover;
+                // 光标吸附
+                const tx = currentHover.mesh.position.x;
+                const tz = currentHover.mesh.position.z;
+                const ty = getElevation(tx, tz);
                 
-            } else {
-                // 离开动物
-                if (hoveredTarget !== null) {
-                    hoveredTarget = null;
-                    panel.style.display = 'none';
-                }
+                cursorGroup.position.lerp(new THREE.Vector3(tx, ty, tz), 0.1);
+                cursorGroup.scale.lerp(new THREE.Vector3(2, 2, 2), 0.1);
+                hexMaterial.color.set(0x8B4513); // 变棕色
 
-                // 恢复原状
+                // 显示 UI 和标签
+                document.getElementById('panel-name').innerText = currentHover.name;
+                document.getElementById('bar-tox').style.width = "80%";
+                document.getElementById('bar-adp').style.width = "60%";
+                panel.style.display = 'block';
+                currentHover.labelDiv.style.opacity = '1';
+
+            } else {
+                lockedTarget = null;
+                // 光标跟随鼠标
+                const ty = getElevation(mouseWorld.x, mouseWorld.z);
+                cursorGroup.position.lerp(new THREE.Vector3(mouseWorld.x, ty, mouseWorld.z), 0.2);
                 cursorGroup.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
-                hexMaterial.color.set(0x333333); // 深灰
+                hexMaterial.color.set(0x222222);
+
+                // 隐藏 UI 和标签
+                panel.style.display = 'none';
+                animals.forEach(a => a.labelDiv.style.opacity = '0');
             }
 
             cursorHex.rotation.z += 0.01;
-
             controls.update();
             renderer.render(scene, camera);
         }
