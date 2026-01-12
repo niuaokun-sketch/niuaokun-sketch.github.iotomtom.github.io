@@ -2,56 +2,81 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>风格点云地图</title>
+    <title>Bear 71 动态追踪地图</title>
     <style>
-        /* 1. 基础设置：白色背景，像 Bear 71 一样 */
+        /* 1. 全局样式 */
         body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Courier New', monospace; }
         
-        /* 2. 顶部导航栏 */
+        /* 2. 顶部 UI */
         #header {
             position: absolute; top: 0; left: 0; width: 100%; height: 60px;
             display: flex; align-items: center; justify-content: space-between;
             padding: 0 40px; box-sizing: border-box;
-            background: white; border-bottom: 1px solid #ddd;
-            z-index: 10;
+            background: rgba(255, 255, 255, 0.9); border-bottom: 1px solid #ddd;
+            z-index: 10; backdrop-filter: blur(5px);
         }
-        .logo { font-weight: bold; font-size: 18px; letter-spacing: 2px; }
-        .btn { border: 1px solid #333; padding: 8px 20px; border-radius: 20px; cursor: pointer; font-size: 12px; }
+        .logo { font-weight: 900; font-size: 20px; letter-spacing: 2px; color: #333; }
+        .status { font-size: 12px; color: #666; }
+        .status span { color: #00cc88; font-weight: bold; animation: blink 1s infinite; }
 
-        /* 3. 标签样式 (漂浮在地图上的牌子) */
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* 3. 动态标签样式 (核心交互) */
+        .label-container {
+            cursor: pointer;
+            transition: all 0.3s ease; /* 让鼠标滑过的放大更丝滑 */
+        }
+        
+        /* 标签本体 */
         .label {
-            background-color: #8B4513; /* 棕色背景 */
-            color: white;
-            padding: 5px 10px;
+            background-color: #333; 
+            color: #fff;
+            padding: 4px 8px;
             font-size: 12px;
             font-weight: bold;
-            pointer-events: none; /* 让鼠标穿透，不挡操作 */
+            border-radius: 2px;
             white-space: nowrap;
-            position: relative;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            border: 1px solid transparent;
         }
-        /* 给标签加一个小三角，指向地面 */
+
+        /* 标签下方的三角 */
         .label::after {
             content: ''; position: absolute; bottom: -5px; left: 50%;
             transform: translateX(-50%);
             border-left: 5px solid transparent;
             border-right: 5px solid transparent;
-            border-top: 5px solid #8B4513;
+            border-top: 5px solid #333;
         }
-        /* 特殊标签：Bear 71 是黑色的 */
-        .label.main { background-color: #333; }
-        .label.main::after { border-top-color: #333; }
+
+        /* 鼠标滑过时的交互效果 */
+        .label-container:hover .label {
+            background-color: #00ffcc; /* 变亮青色 */
+            color: #000;
+            transform: scale(1.1); /* 放大 */
+            border-color: #000;
+            z-index: 100; /* 浮到最上层 */
+        }
+        .label-container:hover .label::after {
+            border-top-color: #00ffcc; /* 三角也变色 */
+        }
+
+        /* 针对不同物种的颜色区分 */
+        .type-predator .label { background-color: #cc3333; } /* 捕食者红色 */
+        .type-predator .label::after { border-top-color: #cc3333; }
+        
+        .type-prey .label { background-color: #4488ff; } /* 猎物蓝色 */
+        .type-prey .label::after { border-top-color: #4488ff; }
 
     </style>
 </head>
 <body>
 
-    <!-- 顶部 UI -->
     <div id="header">
-        <div class="logo">BEAR 71 REPLICA</div>
-        <div class="btn">+ STORY</div>
+        <div class="logo">ECO-TRACKER /// LIVE</div>
+        <div class="status">SYSTEM: <span>ONLINE</span> | TRACKING: 5 TARGETS</div>
     </div>
 
-    <!-- 引入 Three.js -->
     <script type="importmap">
         {
             "imports": {
@@ -64,135 +89,199 @@
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        // 引入 CSS2D 渲染器，这是做漂浮标签的神器
         import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
-        // --- 1. 场景初始化 ---
+        // --- 1. 核心数学公式 ---
+        // 这是地形的 DNA。只要有了它，我们就能算出地图上任何一点的高度。
+        // x, z 是水平坐标，返回 y (高度)
+        function getTerrainHeight(x, z) {
+            // 公式：两个正弦波叠加 + 噪点模拟
+            return Math.sin(x * 0.05) * 5 + Math.cos(z * 0.05) * 5;
+        }
+
+        // --- 2. 场景初始化 ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xffffff); // 白色背景
-        // 添加白色雾气，让远处的点渐渐消失，增加深邃感
-        scene.fog = new THREE.FogExp2(0xffffff, 0.015);
+        scene.background = new THREE.Color(0xf0f0f0); 
+        scene.fog = new THREE.FogExp2(0xf0f0f0, 0.012);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 30, 60); // 相机放高一点，俯视
+        camera.position.set(0, 40, 60);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // --- 2. 初始化标签渲染器 (让 HTML 元素能跟着 3D 动) ---
         const labelRenderer = new CSS2DRenderer();
         labelRenderer.setSize(window.innerWidth, window.innerHeight);
         labelRenderer.domElement.style.position = 'absolute';
         labelRenderer.domElement.style.top = '0px';
-        // 关键：让鼠标事件穿透标签层，否则无法拖动地图
-        labelRenderer.domElement.style.pointerEvents = 'none'; 
+        labelRenderer.domElement.style.pointerEvents = 'none'; // 允许点击穿透
         document.body.appendChild(labelRenderer.domElement);
 
-        // --- 3. 生成点云地形 (核心代码) ---
+        // --- 3. 生成地形 (Point Cloud) ---
         const geometry = new THREE.BufferGeometry();
         const positions = [];
         const colors = [];
+        
+        const width = 200; 
+        const depth = 200; 
+        const gap = 1.5;
 
-        const width = 150;  // 地图宽度
-        const depth = 150;  // 地图深度
-        const gap = 1.5;    // 点之间的间距
+        const colorWater = new THREE.Color(0xaaccff);
+        const colorLand = new THREE.Color(0x88cc44);
+        const colorHigh = new THREE.Color(0xeeeeee); // 雪山
 
-        const colorWater = new THREE.Color(0x66ccff); // 浅蓝色 (水)
-        const colorLand = new THREE.Color(0x88cc44);  // 黄绿色 (地)
-
-        // 双重循环生成点阵
         for (let x = -width / 2; x < width / 2; x += gap) {
             for (let z = -depth / 2; z < depth / 2; z += gap) {
+                // 使用完全相同的公式生成地形点
+                let y = getTerrainHeight(x, z);
                 
-                // --- 造山算法 (用数学公式生成起伏) ---
-                // 这里用了 sin 和 cos 函数来模拟山峰和河流
-                let y = Math.sin(x * 0.05) * 5 + Math.cos(z * 0.05) * 5;
-                // 加一点随机噪点，让地形更自然
-                y += Math.random() * 0.5;
+                // 加一点随机抖动让地形看起来不那么平滑
+                y += (Math.random() - 0.5) * 0.5;
 
                 positions.push(x, y, z);
 
-                // --- 染色逻辑 ---
-                // 如果高度(y)小于 0，就是水(蓝)，否则是山(绿)
-                if (y < -2) {
+                // 根据高度染色
+                if (y < -3) {
                     colors.push(colorWater.r, colorWater.g, colorWater.b);
+                } else if (y > 6) {
+                    colors.push(colorHigh.r, colorHigh.g, colorHigh.b);
                 } else {
                     colors.push(colorLand.r, colorLand.g, colorLand.b);
                 }
             }
         }
-
         geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-
-        // 点的材质
-        const material = new THREE.PointsMaterial({
-            size: 0.8,              // 点的大小
-            vertexColors: true,     // 启用顶点颜色
-            sizeAttenuation: true   // 近大远小
-        });
-
+        const material = new THREE.PointsMaterial({ size: 0.6, vertexColors: true });
         const terrain = new THREE.Points(geometry, material);
         scene.add(terrain);
 
-        // --- 4. 添加标签 (Bear 71, Cougar 等) ---
-        
-        function addLabel(text, x, z, isMain = false) {
-            // 1. 算一下这个坐标的高度 y，保证标签贴在地面上
-            let y = Math.sin(x * 0.05) * 5 + Math.cos(z * 0.05) * 5;
+        // --- 4. 动物类 (智能移动的核心) ---
+        class Animal {
+            constructor(name, type, startX, startZ) {
+                this.name = name;
+                this.type = type; // 'predator' or 'prey'
+                
+                // 4.1 创建视觉组件
+                this.group = new THREE.Group(); // 把线、点、标签打包
+                
+                // 标签 (CSS2D)
+                const div = document.createElement('div');
+                div.className = `label-container type-${type}`;
+                div.innerHTML = `<div class="label">${name}</div>`;
+                // 鼠标交互：必须开启 pointerEvents: auto 才能响应 hover
+                div.style.pointerEvents = 'auto'; 
+                
+                // 点击事件：你可以在这里加点击逻辑
+                div.onclick = () => { alert(`正在追踪: ${this.name}\n状态: 活跃`); };
 
-            // 2. 创建 HTML 元素
-            const div = document.createElement('div');
-            div.className = isMain ? 'label main' : 'label';
-            div.textContent = text;
+                const label = new CSS2DObject(div);
+                label.position.set(0, 4, 0); // 标签悬浮高度
+                this.group.add(label);
 
-            // 3. 转换成 3D 对象
-            const label = new CSS2DObject(div);
-            label.position.set(x, y + 2, z); // y+2 是为了让标签悬浮在点上方一点点
-            scene.add(label);
-
-            // 4. (可选) 给主角加个特殊的标记杆
-            if (isMain) {
+                // 竖线 (指示杆)
                 const lineGeo = new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(x, y, z),
-                    new THREE.Vector3(x, y + 2, z)
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(0, 4, 0)
                 ]);
-                const lineMat = new THREE.LineBasicMaterial({ color: 0x333333 });
-                const line = new THREE.Line(lineGeo, lineMat);
-                scene.add(line);
+                const lineMat = new THREE.LineBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.5 });
+                this.line = new THREE.Line(lineGeo, lineMat);
+                this.group.add(this.line);
+
+                // 脚下的点
+                const dotGeo = new THREE.SphereGeometry(0.3);
+                const dotMat = new THREE.MeshBasicMaterial({ color: type === 'predator' ? 0xff0000 : 0x0000ff });
+                this.dot = new THREE.Mesh(dotGeo, dotMat);
+                this.group.add(this.dot);
+
+                scene.add(this.group);
+
+                // 4.2 移动逻辑数据
+                this.position = new THREE.Vector3(startX, 0, startZ);
+                this.target = new THREE.Vector3(startX, 0, startZ);
+                this.speed = 0.05 + Math.random() * 0.05; // 随机速度
+                this.waitTime = 0; // 停留时间
+                
+                this.pickNewTarget();
+            }
+
+            // 随机找一个新的目的地
+            pickNewTarget() {
+                const range = 80; // 活动范围
+                this.target.x = (Math.random() - 0.5) * range;
+                this.target.z = (Math.random() - 0.5) * range;
+                this.waitTime = Math.random() * 100 + 50; // 随机停顿时间
+            }
+
+            update() {
+                // 如果还有等待时间，就发呆
+                if (this.waitTime > 0) {
+                    this.waitTime--;
+                    return;
+                }
+
+                // 计算方向
+                const direction = new THREE.Vector3().subVectors(this.target, this.position);
+                const distance = direction.length();
+
+                if (distance < 0.5) {
+                    // 到达目的地了，休息一下，找下一个点
+                    this.pickNewTarget();
+                } else {
+                    // 移动
+                    direction.normalize();
+                    this.position.x += direction.x * this.speed;
+                    this.position.z += direction.z * this.speed;
+
+                    // ⚠️ 关键：计算贴地高度 ⚠️
+                    // 实时计算当前 x, z 对应的地形高度 y
+                    this.position.y = getTerrainHeight(this.position.x, this.position.z);
+                }
+
+                // 更新视觉组件的位置
+                this.group.position.copy(this.position);
             }
         }
 
-        // 添加几个示例标签
-        addLabel("BEAR 71", 0, 0, true); // 主角
-        addLabel("COUGAR 121", 20, -20);
-        addLabel("LYNX 106", -15, -30);
-        addLabel("COYOTE 431", 10, -40);
+        // --- 5. 创建动物园 ---
+        const animals = [];
+        animals.push(new Animal("BEAR 71", "predator", 0, 0));
+        animals.push(new Animal("WOLF 02", "predator", 20, -20));
+        animals.push(new Animal("DEER 15", "prey", -30, 10));
+        animals.push(new Animal("MOOSE 08", "prey", 40, 40));
+        animals.push(new Animal("COYOTE 99", "predator", -10, -50));
 
-        // --- 5. 控制器与动画 ---
-        const controls = new OrbitControls(camera, renderer.domElement); // 注意这里绑定在 renderer 上
-        // 让 CSS2D 也能响应鼠标交互，这行代码很关键，把事件层设为 none 后，我们需要手动控制
-        // 但是上面我们把 labelRenderer pointerEvents 设为 none 了，所以直接控制 renderer 即可。
+        // --- 6. 动画循环 ---
+        const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.autoRotate = true; // 让地图缓慢旋转
-        controls.autoRotateSpeed = 0.5;
+        controls.dampingFactor = 0.05; // 让鼠标滑动更顺滑
+        controls.maxDistance = 120;
+        controls.autoRotate = true;     // 自动缓慢旋转镜头
+        controls.autoRotateSpeed = 0.3; // 转速
+        
+        // 监听交互：当用户手动操作时，暂停自动旋转，体验更好
+        controls.addEventListener('start', () => { controls.autoRotate = false; });
 
         function animate() {
             requestAnimationFrame(animate);
+
+            // 更新所有动物的位置
+            animals.forEach(animal => animal.update());
+
             controls.update();
             renderer.render(scene, camera);
-            labelRenderer.render(scene, camera); // 渲染标签
+            labelRenderer.render(scene, camera);
         }
         animate();
 
-        // 窗口自适应
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             labelRenderer.setSize(window.innerWidth, window.innerHeight);
         });
+
     </script>
 </body>
 </html>
